@@ -1,0 +1,9 @@
+schema_dir: /home/ubuntu/workspace/configFiles/form700/
+socrata_client_config_fname: socrata_config.yaml
+form700_username: user
+form700_password: pass
+dataset_base_url: https://data.sfgov.org/resource/
+authUrl: http://173.239.65.75:80/Connect2/api/auth
+url_cover: http://173.239.65.75:80/Connect2/api/public/sei/export/cover
+agency_prefix: SFO
+url_schedule: http://173.239.65.75:80/Connect2/api/public/sei/export/schedule
