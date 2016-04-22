@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[359]:
+# In[378]:
 
 import requests
 import json
@@ -16,7 +16,7 @@ import itertools
 import numpy as np
 
 
-# In[360]:
+# In[379]:
 
 class ConfigItems:
     '''
@@ -56,7 +56,7 @@ class SocrataClient:
     
 
 
-# In[361]:
+# In[380]:
 
 class form700:
     '''
@@ -145,9 +145,10 @@ class form700:
         #chain the list together
         single_schedule_list = list(itertools.chain(*single_schedule_list ))
         return  {schedule: json_normalize( single_schedule_list) }
+    
 
 
-# In[362]:
+# In[381]:
 
 class prepareDataSetSchema:
     '''
@@ -197,128 +198,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[363]:
-
-class SocrataCreateInsertUpdateForm700Data:
-    def __init__(self,  configItems, client=None):
-        self.client = client
-        self.schema_dir = configItems['schema_dir']
-        self.tables = self.setTableInfo()
-        self.dataset_base_url = configItems['dataset_base_url']
-    
-    def getTableInfo(self):
-        return self.tables
-        
-    def setTableInfo(self):
-        tables_fname = self.schema_dir + "form700_tables.csv"
-        return pd.read_csv(tables_fname)
-    
-    def makeDataSet(self, dfname):
-        dataset = {}
-        dataset['columns'] = self.getColumns(dfname)
-        dataset = self.parseTableInfo(dataset, dfname)
-        return dataset
-    
-    def getColumns(self, dfname):
-        '''
-        creates columns as defined in schema csvs
-        '''
-        schema_fname = self.schema_dir + "form700_"+ dfname + "_schema.csv"
-        fields = pd.read_csv(schema_fname)
-        fieldnames = list(fields['fieldName'])
-        #note: this is changing shit into plural 
-        fieldnames = [ inflection.underscore(field) for field in fieldnames]
-        names = list(fields['name'])
-        dataTypeName = list(fields['dataTypeName'])
-        columns = zip(fieldnames, names, dataTypeName)
-        columns = [{"fieldName":item[0], "name":item[1], "dataTypeName": item[2]} for item in columns ]
-        return columns
-    
-    def parseTableInfo(self, socrata_dataset, dfname):
-        self.tables['FourByFour']= self.tables['FourByFour'].fillna(0)
-        table = self.tables[self.tables['df_name'] == dfname].iloc[0]  #just want the first row
-        socrata_dataset['description'] = table['description']
-        socrata_dataset['tags'] = table['tags']
-        socrata_dataset['category'] = table['category']
-        socrata_dataset['dataset_name'] = table['dataset_name']
-        socrata_dataset['FourByFour'] = table['FourByFour']
-        return socrata_dataset
-    
-    def createDataSet(self, dfname):
-        dataset = self.makeDataSet(dfname)
-        if dataset['FourByFour']== 0:
-            try:
-                socrata_dataset = self.client.create(dataset['dataset_name'], description=dataset['description'], columns=dataset['columns'], category=dataset['category'], new_backend=False)
-                FourXFour = str(socrata_dataset['id'])
-                dataset['Dataset URL'] = self.dataset_base_url + FourXFour
-                dataset['FourByFour'] = FourXFour
-                print "4x4 "+dataset['FourByFour']
-            except:
-                print "*****ERROR*******"
-                dataset['Dataset URL'] = ''
-                dataset['FourByFour'] = 'Error: did not create dataset'
-                print "4x4 "+ dataset['FourByFour']
-                print "***************"
-        return dataset
-    
-    def insertDataSet(self, dataset, dataset_dict, dfname):
-        insertDataSet = []
-        #keep track of the rows we are inserting
-        dataset['rowsInserted'] = 0
-        print dataset['FourByFour']
-        ##need to rename all the columns to fit socrata- need to use titlize
-        fieldnames = list(dataset_dict[dfname].columns)
-        df_fields = [ inflection.underscore(field) for field in fieldnames]
-        columndict = dict(zip(fieldnames,df_fields ))
-        dataset_dict[dfname]= dataset_dict[dfname].rename(columns=columndict)
-        try:
-            insertDataSet = dataset_dict[dfname].to_dict('records')
-
-        except:
-            result = 'Error: could not get data'
-            return dataset
-        #need to chunk up dataset so we dont get Read timed out errors
-        if len(insertDataSet) > 1000 and (not(insertDataSet is None)):
-            #chunk it
-            insertChunks=[insertDataSet[x:x+1000] for x in xrange(0, len(insertDataSet), 1000)]
-            #overwrite the dataset on the first insert
-            print insertChunks[1][230]
-            result = self.client.replace(dataset['FourByFour'], insertChunks[0])
-            print result
-            try: 
-                result = self.client.replace(dataset['FourByFour'], insertChunks[0])
-                print "First Chunk: Rows inserted: " + str(dataset['rowsInserted'])
-                dataset['rowsInserted'] =  int(result['Rows Created'])
-            except:
-                result = 'Error: did not insert dataset chunk'
-            for chunk in insertChunks[1:]:
-                try:
-                    result = self.client.upsert(dataset['FourByFour'], chunk)
-                    dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
-                    print "Additional Chunks: Rows inserted: " + str(dataset['rowsInserted'])
-                    time.sleep(1)
-                except:
-                    result = 'Error: did not insert dataset chunk'
-        elif len(insertDataSet) < 1000 and (not(insertDataSet is None)):
-            #print insertDataSet[0]
-            try:
-                result = self.client.replace(dataset['FourByFour'], insertDataSet) 
-                dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
-                print "Rows inserted: " + str(dataset['rowsInserted'])
-            except:
-                print 'Error: did not insert dataset'
-        return dataset
-    
-    def postDataToSocrata(self, dfname, dataset_dict ):
-        dataset = self.createDataSet(dfname)
-        if dataset['FourByFour']!= 0:
-            dataset = self.insertDataSet( dataset, dataset_dict, dfname)
-        else: 
-            print "dataset does not exist"
-        return dataset
-
-
-# In[364]:
+# In[468]:
 
 class dataSetPrep:
     '''
@@ -376,9 +256,12 @@ class dataSetPrep:
         for item in jsonField:
             item_kv = []
             for k,v in item.iteritems():
-                if str(v) == "":
-                    v = None
-                item_str = str(k) + ":" + str(v)
+                try:
+                    if str(v) == "":
+                        v = None
+                    item_str = str(k) + ":" + str(v)
+                except:
+                    item_str = k.encode('ascii','backslashreplace')
                 item_kv.append(item_str)
             line_item =  ",".join(item_kv)
             allItems.append(line_item)
@@ -389,14 +272,157 @@ class dataSetPrep:
         table = tables[tables['df_name'] == dfname]
         list_columns = table[['list_columns']]
         list_columns = list_columns.iloc[0]['list_columns']
-        list_columns = list_columns.split(",")
-        df = df_dict[dfname]
-        for col in list_columns:
-            df[col] = df.apply(lambda row: self.flatten_json(row, col), axis=1)
+        if list_columns != 0:
+            list_columns = list_columns.split(":")
+            df = df_dict[dfname]
+            for col in list_columns:
+                df[col] = df.apply(lambda row: self.flatten_json(row, col), axis=1)
         return df
+    
+    def joinFilerToSchedule(self, schedule_data, cover_data_df):
+        filier_cols = ['filingId', 'filerName', 'departmentName', 'positionName', 'offices', 'periodStart', 'periodEnd', 'filingDate']
+        df_filer_info = cover_data_df[filier_cols]
+        schedules = schedule_data.keys()
+        for schedule in schedules:
+            schedule_data[schedule] = pd.merge(schedule_data[schedule],df_filer_info , on='filingId', how='left')
+        return schedule_data
 
 
-# In[365]:
+# In[633]:
+
+class SocrataCreateInsertUpdateForm700Data:
+    def __init__(self,  configItems, client=None):
+        self.client = client
+        self.schema_dir = configItems['schema_dir']
+        self.tables = self.setTableInfo()
+        self.dataset_base_url = configItems['dataset_base_url']
+    
+    def getTableInfo(self):
+        return self.tables
+        
+    def setTableInfo(self):
+        tables_fname = self.schema_dir + "form700_tables.csv"
+        return pd.read_csv(tables_fname)
+    
+    def makeDataSet(self, dfname):
+        dataset = {}
+        dataset['columns'] = self.getColumns(dfname)
+        dataset = self.parseTableInfo(dataset, dfname)
+        return dataset
+    
+    def getColumns(self, dfname):
+        '''
+        creates columns as defined in schema csvs
+        '''
+        schema_fname = self.schema_dir + "form700_"+ dfname + "_schema.csv"
+        fields = pd.read_csv(schema_fname)
+        fieldnames = list(fields['fieldName'])
+        fieldnames =  [ field.replace(".", "") for field in fieldnames]
+        #note: this is changing shit into plural 
+        fieldnames = [ inflection.underscore(field) for field in fieldnames]
+        names = list(fields['name'])
+        dataTypeName = list(fields['dataTypeName'])
+        columns = zip(fieldnames, names, dataTypeName)
+        columns = [{"fieldName":item[0], "name":item[1], "dataTypeName": item[2]} for item in columns ]
+        return columns
+    
+    def parseTableInfo(self, socrata_dataset, dfname):
+        self.tables['FourByFour']= self.tables['FourByFour'].fillna(0)
+        table = self.tables[self.tables['df_name'] == dfname].iloc[0]  #just want the first row
+        socrata_dataset['description'] = table['description']
+        socrata_dataset['tags'] = [table['tags']]
+        socrata_dataset['category'] = table['category']
+        socrata_dataset['dataset_name'] = table['dataset_name']
+        socrata_dataset['FourByFour'] = table['FourByFour']
+        return socrata_dataset
+    
+    def createDataSet(self, dfname):
+        dataset = self.makeDataSet(dfname)
+        if dataset['FourByFour']== 0:
+            try:
+                socrata_dataset = self.client.create(dataset['dataset_name'], description=dataset['description'], columns=dataset['columns'], category=dataset['category'], tags=dataset['tags'], new_backend=False)
+                FourXFour = str(socrata_dataset['id'])
+                dataset['Dataset URL'] = self.dataset_base_url + FourXFour
+                dataset['FourByFour'] = FourXFour
+                print "4x4 "+dataset['FourByFour']
+            except:
+                print "*****ERROR*******"
+                dataset['Dataset URL'] = ''
+                dataset['FourByFour'] = 'Error: did not create dataset'
+                print "4x4 "+ dataset['FourByFour']
+                print "***************"
+        return dataset
+    
+    def insertDataSet(self, dataset, dataset_dict, dfname):
+        insertDataSet = []
+        #keep track of the rows we are inserting
+        dataset['rowsInserted'] = 0
+        print dataset['FourByFour']
+        ##need to rename all the columns to fit socrata- need to use titlize
+        fieldnames = list(dataset_dict[dfname].columns)
+        fieldnamesRemoveDots =  [ field.replace(".", "") for field in fieldnames]
+        df_fields = [ inflection.underscore(field) for field in fieldnamesRemoveDots]
+        columndict = dict(zip(fieldnames,df_fields ))
+        dataset_dict[dfname] = dataset_dict[dfname].rename(columns=columndict)
+        #fill in all NAs just to be safe
+        dataset_dict[dfname] = dataset_dict[dfname].fillna("")
+        try:
+            insertDataSet = dataset_dict[dfname].to_dict('records')
+            print insertDataSet[10]
+            print "******"
+            print len(insertDataSet)
+        except:
+            print 'Error: could not get data'
+            return dataset
+        #need to chunk up dataset so we dont get Read timed out errors
+        if len(insertDataSet) > 1000 and (not(insertDataSet is None)):
+            #chunk it
+            insertChunks=[insertDataSet[x:x+1000] for x in xrange(0, len(insertDataSet), 1000)]
+            #overwrite the dataset on the first insert
+            result = self.client.replace(dataset['FourByFour'], insertChunks[0])
+            print result
+            try: 
+                result = self.client.replace(dataset['FourByFour'], insertChunks[0])
+                print "First Chunk: Rows inserted: " + str(dataset['rowsInserted'])
+                dataset['rowsInserted'] =  int(result['Rows Created'])
+            except:
+                result = 'Error: did not insert dataset chunk'
+            for chunk in insertChunks[1:]:
+                try:
+                    result = self.client.upsert(dataset['FourByFour'], chunk)
+                    dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
+                    print "Additional Chunks: Rows inserted: " + str(dataset['rowsInserted'])
+                    time.sleep(1)
+                except:
+                    result = 'Error: did not insert dataset chunk'
+        elif len(insertDataSet) < 1000 and (not(insertDataSet is None)):
+            #print insertDataSet[0]
+            try:
+                result = self.client.replace(dataset['FourByFour'], insertDataSet) 
+                print result
+                dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
+                print "Rows inserted: " + str(dataset['rowsInserted'])
+            except:
+                print 'Error: did not insert dataset'
+        return dataset
+    
+    def postDataToSocrata(self, dfname, dataset_dict ):
+        dataset = self.createDataSet(dfname)
+        if dataset['FourByFour']!= 0:
+            dataset = self.insertDataSet( dataset, dataset_dict, dfname)
+        else: 
+            print "dataset does not exist"
+        return dataset
+
+
+# In[634]:
+
+#needed to create schema csv files 
+#cds= createDataSets(config_dir, configItems)
+#schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
+
+
+# In[635]:
 
 inputdir = "/home/ubuntu/workspace/configFiles/"
 fieldConfigFile = 'fieldConfig.yaml'
@@ -409,45 +435,46 @@ scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
 dsp = dataSetPrep(configItems)
 
 
-# In[366]:
+# In[636]:
 
 f700 = form700(configItems)
 schedules =  f700.getSchedules()
 tables = scICU.getTableInfo()
+tables = tables.fillna(0)
 
 
-# In[367]:
+# In[637]:
 
 cover_data = f700.getCoverData()
 
 
-# In[368]:
+# In[638]:
 
-#schedule_data = f700.getScheduleData()
-
-
-# In[369]:
-
-#needed to create schema csv files 
-#cds= createDataSets(config_dir, configItems)
-#schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
+schedule_data = f700.getScheduleData()
 
 
-# In[371]:
+# In[639]:
 
-scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
-datasetnew = scICU.postDataToSocrata('cover', cover_data)#socrata_dataset = scICU.createDataSet('cover')
+schedule_data = dsp.joinFilerToSchedule(schedule_data, cover_data['cover'])
 
 
-# In[40]:
+# In[640]:
 
-def flattenColumn(input, column):
-    column_flat = pd.DataFrame([[i, c_flattened] for i, y in input[column].apply(list).iteritems() for c_flattened in y], columns=['I', column])
-    column_flat = column_flat.set_index('I')
-    return input.drop(column, 1).merge(column_flat, left_index=True, right_index=True)
-#len(cover_data['cover'])
-df = cover_data['cover']
-new_df = flattenColumn(df , 'offices')
-new_df[new_df['filerName'] == 'Mosser, Neveo']
-#offices = df['offices'].apply(pd.Series)  
+#clean the cover data
+cover_data['cover'] = dsp.cleanDataSet(cover_data, 'cover', tables)
+
+
+# In[641]:
+
+schedule_data = dsp.cleanDataSetDict(schedule_data, tables)
+
+
+# In[642]:
+
+#datasetnew = scICU.postDataToSocrata('cover', cover_data)#socrata_dataset = scICU.createDataSet('cover')
+
+
+# In[649]:
+
+schedule_item = scICU.postDataToSocrata('scheduleD', schedule_data)
 
