@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[378]:
+# In[936]:
 
 import requests
 import json
@@ -14,9 +14,16 @@ import yaml
 from sodapy import Socrata
 import itertools
 import numpy as np
+import smtplib
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+from email.MIMEBase import MIMEBase
+from email import encoders
+import csv
+import time
 
 
-# In[379]:
+# In[841]:
 
 class ConfigItems:
     '''
@@ -56,7 +63,7 @@ class SocrataClient:
     
 
 
-# In[380]:
+# In[842]:
 
 class form700:
     '''
@@ -148,7 +155,7 @@ class form700:
     
 
 
-# In[381]:
+# In[843]:
 
 class prepareDataSetSchema:
     '''
@@ -198,7 +205,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[468]:
+# In[844]:
 
 class dataSetPrep:
     '''
@@ -288,9 +295,12 @@ class dataSetPrep:
         return schedule_data
 
 
-# In[633]:
+# In[947]:
 
 class SocrataCreateInsertUpdateForm700Data:
+    '''
+    creates dataset on socrata or inserts it if table exists
+    '''
     def __init__(self,  configItems, client=None):
         self.client = client
         self.schema_dir = configItems['schema_dir']
@@ -357,6 +367,8 @@ class SocrataCreateInsertUpdateForm700Data:
         insertDataSet = []
         #keep track of the rows we are inserting
         dataset['rowsInserted'] = 0
+        dataset['totalRecords'] = 0
+        print dfname
         print dataset['FourByFour']
         ##need to rename all the columns to fit socrata- need to use titlize
         fieldnames = list(dataset_dict[dfname].columns)
@@ -366,42 +378,44 @@ class SocrataCreateInsertUpdateForm700Data:
         dataset_dict[dfname] = dataset_dict[dfname].rename(columns=columndict)
         #fill in all NAs just to be safe
         dataset_dict[dfname] = dataset_dict[dfname].fillna("")
+        
         try:
             insertDataSet = dataset_dict[dfname].to_dict('records')
-            print insertDataSet[10]
-            print "******"
-            print len(insertDataSet)
+            dataset['totalRecords'] = len(insertDataSet)
         except:
             print 'Error: could not get data'
             return dataset
+        
         #need to chunk up dataset so we dont get Read timed out errors
         if len(insertDataSet) > 1000 and (not(insertDataSet is None)):
             #chunk it
             insertChunks=[insertDataSet[x:x+1000] for x in xrange(0, len(insertDataSet), 1000)]
-            #overwrite the dataset on the first insert
-            result = self.client.replace(dataset['FourByFour'], insertChunks[0])
-            print result
-            try: 
-                result = self.client.replace(dataset['FourByFour'], insertChunks[0])
-                print "First Chunk: Rows inserted: " + str(dataset['rowsInserted'])
-                dataset['rowsInserted'] =  int(result['Rows Created'])
+            try:
+                row_result = 0
+                result = self.client.replace(dataset['FourByFour'], insertChunks[0]) 
+                row_result =  int(result['Rows Created'])
+                dataset['rowsInserted'] = row_result
             except:
-                result = 'Error: did not insert dataset chunk'
+                print 'Error: did not insert first dataset chunk'
+        
             for chunk in insertChunks[1:]:
                 try:
+                    row_result = 0
                     result = self.client.upsert(dataset['FourByFour'], chunk)
-                    dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
-                    print "Additional Chunks: Rows inserted: " + str(dataset['rowsInserted'])
+                    row_result =  int(result['Rows Created'])
+                    current_insert_cnt =  dataset['rowsInserted']
+                    dataset['rowsInserted'] = current_insert_cnt + row_result
+                    #print "Additional Chunks: Rows inserted: " + str(dataset['rowsInserted'])
                     time.sleep(1)
                 except:
-                    result = 'Error: did not insert dataset chunk'
+                    print 'Error: did not insert dataset chunk'
+
         elif len(insertDataSet) < 1000 and (not(insertDataSet is None)):
             #print insertDataSet[0]
             try:
                 result = self.client.replace(dataset['FourByFour'], insertDataSet) 
-                print result
                 dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
-                print "Rows inserted: " + str(dataset['rowsInserted'])
+                #print "Rows inserted: " + str(dataset['rowsInserted'])
             except:
                 print 'Error: did not insert dataset'
         return dataset
@@ -415,66 +429,186 @@ class SocrataCreateInsertUpdateForm700Data:
         return dataset
 
 
-# In[634]:
+# In[968]:
+
+class emailer():
+    '''
+    util class to email stuff to people.
+    '''
+    def __init__(self, inputdir, configItems):
+        self.inputdir = inputdir
+        self.configItems = configItems
+        self.emailConfigs = self.getEmailerConfigs()
+        
+        
+    def getEmailerConfigs(self):
+        emailConfigFile = self.inputdir + self.configItems['email_config_fname']
+        with open(emailConfigFile,  'r') as stream:
+            try:
+                email_items = yaml.load(stream)
+                return email_items
+            except yaml.YAMLError as exc:
+                print(exc)
+        return 0
+    
+    def setConfigs(self, subject_line, msgBody, fname_attachment=None, fname_attachment_fullpath=None):
+        self.server = self.emailConfigs['server_addr']
+        self.server_port = self.emailConfigs['server_port']
+        self.address =  self.emailConfigs['email_addr']
+        self.password = base64.b64decode(self.emailConfigs['email_pass'])
+        self.msgBody = msgBody
+        self.subjectLine = subject_line
+        self.fname_attachment = fname_attachment
+        self.fname_attachment_fullpath = fname_attachment_fullpath
+        self.recipients = self.emailConfigs['receipients']
+    
+    def getEmailConfigs(self):
+        return self.emailConfigs
+    
+    def sendEmails(self, subject_line, msgBody, fname_attachment=None, fname_attachment_fullpath=None):
+        self.setConfigs(subject_line, msgBody, fname_attachment, fname_attachment_fullpath)
+        fromaddr = self.address
+        toaddr = self.recipients
+        msg = MIMEMultipart()
+        msg['From'] = fromaddr
+        msg['To'] = toaddr
+        msg['Subject'] = self.subjectLine
+        body = self.msgBody 
+        msg.attach(MIMEText(body, 'plain'))
+          
+        #Optional Email Attachment:
+        if(not(self.fname_attachment is None and self.fname_attachment_fullpath is None)):
+            filename = self.fname_attachment
+            attachment = open(self.fname_attachment_fullpath, "rb")
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload((attachment).read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', "attachment; filename= %s" % filename)
+            msg.attach(part)
+        
+        #normal emails, no attachment
+        server = smtplib.SMTP(self.server, self.server_port)
+        server.starttls()
+        server.login(fromaddr, self.password)
+        text = msg.as_string()
+        server.sendmail(fromaddr, toaddr, text)
+        server.quit()
+
+
+# In[969]:
+
+class logETLLoad:
+    '''
+    util class to get job status- aka check to make sure that records were inserted; also emails results to receipients
+    '''
+    def __init__(self, inputdir, configItems):
+        self.keysToRemove = ['columns', 'tags']
+        self.log_dir = configItems['log_dir']
+        self.dataset_base_url = configItems['dataset_base_url']
+        self.failure =  False
+        self.job_name = configItems['job_name']
+        self.logfile_fname = self.job_name + ".csv"
+        self.logfile_fullpath = self.log_dir + self.job_name + ".csv"
+        self.configItems =  configItems
+        self.inputdir = inputdir
+        
+    def removeKeys(self, dataset):
+        for key in self.keysToRemove:
+            try:
+                remove_columns = dataset.pop(key, None)
+            except:
+                noKey = True
+        return dataset
+    
+    def sucessStatus(self, dataset):
+        dataset = self.removeKeys(dataset)
+        if dataset['rowsInserted'] == dataset['totalRecords']:
+            dataset['jobStatus'] = "SUCCESS"
+        else: 
+            dataset['jobStatus'] = "FAILURE"
+            self.failure =  True
+        return dataset
+    
+    def makeJobStatusAttachment(self,  finishedDataSets ):
+        with open(self.logfile_fullpath, 'w') as csvfile:
+            fieldnames = finishedDataSets[0].keys()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for dataset in finishedDataSets:
+                writer.writerow(dataset)
+
+    def getJobStatus(self):
+        if self.failure: 
+            return  "FAILED: " + self.job_name
+        else: 
+            return  "SUCCESS: " + self.job_name
+
+    def makeJobStatusMsg( self,  dataset  ):
+        msg = dataset['jobStatus'] + ": " + dataset['dataset_name'] + "-> Total Rows:" + str(dataset['totalRecords']) + ", Rows Inserted: " + str(dataset['rowsInserted'])  + ", Link: "  + self.dataset_base_url + dataset['FourByFour'] + " \n\n " 
+        return msg
+    
+    def sendJobStatusEmail(self, finishedDataSets):
+        msgBody  = "" 
+        for i in range(len(finishedDataSets)):
+            #remove the column definitions, check if records where inserted
+            dataset = self.sucessStatus( self.removeKeys(finishedDataSets[i]))
+            msg = self.makeJobStatusMsg( dataset  )
+            msgBody  = msgBody  + msg
+        subject_line = self.getJobStatus()
+        email_attachment = self.makeJobStatusAttachment(finishedDataSets)
+        e = emailer(self.inputdir, self.configItems)
+        emailconfigs = e.getEmailConfigs()
+        if os.path.isfile(self.logfile_fullpath):
+            e.sendEmails( subject_line, msgBody, self.logfile_fname, self.logfile_fullpath)
+        else:
+            e.sendEmails( subject_line, msgBody)
+        print "****************JOB STATUS******************"
+        print subject_line
+        print "Email Sent!"
+
+
+# In[950]:
 
 #needed to create schema csv files 
 #cds= createDataSets(config_dir, configItems)
 #schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
 
 
-# In[635]:
+# In[973]:
 
-inputdir = "/home/ubuntu/workspace/configFiles/"
-fieldConfigFile = 'fieldConfig.yaml'
-cI =  ConfigItems(inputdir ,fieldConfigFile  )
-configItems = cI.getConfigs()
-sc = SocrataClient(inputdir, configItems)
-client = sc.connectToSocrata()
-#class objects
-scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
-dsp = dataSetPrep(configItems)
-
-
-# In[636]:
-
-f700 = form700(configItems)
-schedules =  f700.getSchedules()
-tables = scICU.getTableInfo()
-tables = tables.fillna(0)
-
-
-# In[637]:
-
-cover_data = f700.getCoverData()
-
-
-# In[638]:
-
-schedule_data = f700.getScheduleData()
-
-
-# In[639]:
-
-schedule_data = dsp.joinFilerToSchedule(schedule_data, cover_data['cover'])
+def main():
+    inputdir = "/home/ubuntu/workspace/configFiles/"
+    fieldConfigFile = 'fieldConfig.yaml'
+    cI =  ConfigItems(inputdir ,fieldConfigFile  )
+    configItems = cI.getConfigs()
+    sc = SocrataClient(inputdir, configItems)
+    client = sc.connectToSocrata()
+    #class objects
+    scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
+    dsp = dataSetPrep(configItems)
+    lte = logETLLoad(inputdir, configItems)
+    f700 = form700(configItems)
+    schedules =  f700.getSchedules()
+    tables = scICU.getTableInfo()
+    tables = tables.fillna(0)
+    cover_data = f700.getCoverData()
+    schedule_data = f700.getScheduleData()
+    schedule_data = dsp.joinFilerToSchedule(schedule_data, cover_data['cover'])
+    #clean the cover data
+    cover_data['cover'] = dsp.cleanDataSet(cover_data, 'cover', tables)
+    schedule_data = dsp.cleanDataSetDict(schedule_data, tables)
+    #post the datasets to Socrata
+    finishedDataSets  = []
+    dataset =  scICU.postDataToSocrata('cover', cover_data)
+    finishedDataSets.append(dataset)
+    for schedule in schedules: 
+        dataset = scICU.postDataToSocrata(schedule, schedule_data)
+        finishedDataSets.append(dataset)
+    msg  = lte.sendJobStatusEmail(finishedDataSets)
 
 
-# In[640]:
+# In[976]:
 
-#clean the cover data
-cover_data['cover'] = dsp.cleanDataSet(cover_data, 'cover', tables)
-
-
-# In[641]:
-
-schedule_data = dsp.cleanDataSetDict(schedule_data, tables)
-
-
-# In[642]:
-
-#datasetnew = scICU.postDataToSocrata('cover', cover_data)#socrata_dataset = scICU.createDataSet('cover')
-
-
-# In[649]:
-
-schedule_item = scICU.postDataToSocrata('scheduleD', schedule_data)
+if __name__ == '__main__' and '__file__' in globals():
+    main()
 

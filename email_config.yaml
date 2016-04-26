@@ -1,0 +1,5 @@
+server_addr: smtp.gmail.com
+server_port: 587
+email_addr: email_addr@gmail.com
+email_pass: password
+receipients: someone@someone.com

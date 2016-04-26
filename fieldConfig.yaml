@@ -7,3 +7,6 @@ authUrl: http://173.239.65.75:80/Connect2/api/auth
 url_cover: http://173.239.65.75:80/Connect2/api/public/sei/export/cover
 agency_prefix: SFO
 url_schedule: http://173.239.65.75:80/Connect2/api/public/sei/export/schedule
+job_name: Form 700 ETL
+log_dir: /home/ubuntu/workspace/logs/
+email_config_fname: email_config.yaml
