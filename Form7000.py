@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[936]:
+# In[1]:
 
 import requests
 import json
@@ -23,7 +23,7 @@ import csv
 import time
 
 
-# In[841]:
+# In[2]:
 
 class ConfigItems:
     '''
@@ -63,7 +63,7 @@ class SocrataClient:
     
 
 
-# In[842]:
+# In[3]:
 
 class form700:
     '''
@@ -127,8 +127,10 @@ class form700:
         '''
         returns cover sheet data
         '''
+        cover_data = None
         cover_data = self.getJsonData(self.url_cover, 'filings')
-        cover_data = json_normalize(cover_data)
+        if cover_data:
+            cover_data = json_normalize(cover_data)
         cover_data = {'cover':cover_data}
         return cover_data
     
@@ -155,7 +157,7 @@ class form700:
     
 
 
-# In[843]:
+# In[4]:
 
 class prepareDataSetSchema:
     '''
@@ -205,7 +207,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[844]:
+# In[18]:
 
 class dataSetPrep:
     '''
@@ -228,24 +230,31 @@ class dataSetPrep:
         df = self.castFields(df, fieldTypesDict)
         return df
     
-    @staticmethod
-    def castFields(df, fieldTypesDict):
+  
+    def castFields(self, df, fieldTypesDict):
         for field, ftype in fieldTypesDict.iteritems():
             if ftype == 'number':
                 df[field] = df[field].fillna(0)
                 df[field]= df[field].astype(int)
             elif ftype == 'text':
                 df[field] = df[field].fillna(value="")
-                df[field]= df[field].astype(str)
-                df[field] = df.apply(lambda row: checkForListRow(row,field),axis=1)
+                try:
+                    df[field]= df[field].astype(str)
+                except:
+                    df[field]= df.apply(lambda row: self.castAscii(row,field),axis=1)
             elif ftype == 'checkbox':
                 df[field] = df[field].fillna(value=False)
                 df[field]= df[field].astype(bool)
-            elif ftype == 'date':
-                df[field] = df[field].fillna(value="")
-                df[field] = pd.to_datetime(df[field], errors='coerce' , format='%Y%m%d')
+            #elif ftype == 'date':
+               # df[field] = df[field].fillna(value="")
+                #df[field] = pd.to_datetime(df[field], errors='coerce' , format='%Y%m%d')
                 #df[field]= df[field].astype('datetime64[ns]')
         return df
+    
+    @staticmethod
+    def castAscii(row, field):
+        item =  row[field].encode('ascii','backslashreplace')
+        return item
     
     @staticmethod
     def removeNewLines(df):
@@ -254,6 +263,7 @@ class dataSetPrep:
     def cleanDataSetDict(self, dataset_dict, tables):
         for df_key,df_val in dataset_dict.iteritems():
             cleaned_df = self.cleanDataSet( dataset_dict, df_key, tables)
+            dataset_dict[df_key] = cleaned_df
         return dataset_dict
 
     @staticmethod
@@ -279,11 +289,21 @@ class dataSetPrep:
         table = tables[tables['df_name'] == dfname]
         list_columns = table[['list_columns']]
         list_columns = list_columns.iloc[0]['list_columns']
+        df = df_dict[dfname]
         if list_columns != 0:
             list_columns = list_columns.split(":")
-            df = df_dict[dfname]
+            #df = df_dict[dfname]
             for col in list_columns:
-                df[col] = df.apply(lambda row: self.flatten_json(row, col), axis=1)
+                print col
+                if(not(col == 'gifts' or col == 'realProperties')):
+                    df[col] = df.apply(lambda row: self.flatten_json(row, col), axis=1)
+            itemToExplode = False
+            if "gifts" in list_columns:
+                itemToExplode = 'gifts'
+            if "realProperties" in list_columns:
+                itemToExplode = 'realProperties'
+            if itemToExplode:
+                df = self.explodeGiftsAndProperties(df, itemToExplode)
         return df
     
     def joinFilerToSchedule(self, schedule_data, cover_data_df):
@@ -293,9 +313,40 @@ class dataSetPrep:
         for schedule in schedules:
             schedule_data[schedule] = pd.merge(schedule_data[schedule],df_filer_info , on='filingId', how='left')
         return schedule_data
+    
+    @staticmethod
+    def explodeGiftsAndProperties(df, field):
+        def renameRealPropertyCols(df):
+            dfcolsOrig = list(df.columns)
+            dfcols = [  col[0].upper()+ col[1:]  for col in dfcolsOrig ]
+            dfcolPrefix = ["realProperty" + col for col in dfcols]
+            dfcolsFinal = dict(zip(dfcolsOrig,dfcolPrefix))
+            df=df.rename(columns = dfcolsFinal)
+            return df
+        def blowupGifts(row, field, idx):
+            newdf = None
+            newdfList = list(row[field])
+            if len(newdfList[0]) > 0:
+                newdf = json_normalize(newdfList[0])
+                if field == "realProperties":
+                    newdf = renameRealPropertyCols(newdf)
+                newdf['index_col'] = idx
+            return newdf
+        df['index_col'] = df.index
+        dfListItems = pd.DataFrame()
+        print len(dfListItems)
+        rowsidx = list(df['index_col'])
+        for idx in rowsidx:
+            row = df[ df['index_col'] == idx]
+            rowdf = blowupGifts(row, field, idx)
+            dfListItems = dfListItems.append(rowdf)
+        df = df.merge(dfListItems, how='left', on='index_col')
+        del df['index_col']
+        del df[field]
+        return df
 
 
-# In[947]:
+# In[19]:
 
 class SocrataCreateInsertUpdateForm700Data:
     '''
@@ -429,7 +480,7 @@ class SocrataCreateInsertUpdateForm700Data:
         return dataset
 
 
-# In[968]:
+# In[20]:
 
 class emailer():
     '''
@@ -495,7 +546,7 @@ class emailer():
         server.quit()
 
 
-# In[969]:
+# In[21]:
 
 class logETLLoad:
     '''
@@ -567,14 +618,14 @@ class logETLLoad:
         print "Email Sent!"
 
 
-# In[950]:
+# In[22]:
 
 #needed to create schema csv files 
 #cds= createDataSets(config_dir, configItems)
 #schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
 
 
-# In[973]:
+# In[23]:
 
 def main():
     inputdir = "/home/ubuntu/workspace/configFiles/"
@@ -607,7 +658,7 @@ def main():
     msg  = lte.sendJobStatusEmail(finishedDataSets)
 
 
-# In[976]:
+# In[33]:
 
 if __name__ == '__main__' and '__file__' in globals():
     main()
