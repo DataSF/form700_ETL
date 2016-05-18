@@ -1,0 +1,17 @@
+df_name,dataset_name,category,description,tags,list_columns,FourByFour,redacted
+cover,Form 700 Cover Page Private,City Management and Ethics,Basic Information about the filer,ethics,offices,vjxe-a4ce,False
+scheduleA1,Form 700 Schedule A1 Private,City Management and Ethics,"Stocks, including those held in IRA or 401K",ethics,offices,vs94-xyyc,False
+scheduleA2,Form 700 Schedule A2 Private,City Management and Ethics,"Business entities (including certain independent contracting) sole proprietorships, partnerships, LLCs, corportaitons, and trusts",ethics,offices:incomeSources:realProperties,bih6-5p6g,False
+scheduleB,Form 700 Schedule B Private,City Management and Ethics,Rental property in the jurisdiction,ethics,offices:incomeSources,fcif-wqha,False
+scheduleC,Form 700 Schedule C Private,City Management and Ethics,Non-governmental salaries of public official and spouse/registered domestic partnerships,ethics,offices:incomeSources,ff9q-5i8s,False
+scheduleD,Form 700 Schedule D Private,City Management and Ethics,Gifts from businesses (such as tickets to sporting or entertainment events),ethics,offices:gifts,aez9-nje2,False
+scheduleE,Form 700 Schedule E Private,City Management and Ethics,Travel payments from third parties (not your employer),ethics,offices,9cv6-hatq,False
+comments,Form 700 Comments Private,City Management and Ethics,Comments about Form 700 schedules,ethics,offices,kxf2-hbth,False
+cover_redacted,Form 700 Cover Page,City Management and Ethics,Basic Information about the filer,ethics,offices,ni6u-knhb,True
+scheduleA1_redacted,Form 700 Schedule A1,City Management and Ethics,"Stocks, including those held in IRA or 401K",ethics,offices,tzbk-2xg8,True
+scheduleA2_redacted,Form 700 Schedule A2,City Management and Ethics,"Business entities (including certain independent contracting) sole proprietorships, partnerships, LLCs, corportaitons, and trusts",ethics,offices:incomeSources:realProperties,j82c-uj4d,True
+scheduleB_redacted,Form 700 Schedule B,City Management and Ethics,Rental property in the jurisdiction,ethics,offices:incomeSources,tcn4-z9dy,True
+scheduleC_redacted,Form 700 Schedule C,City Management and Ethics,Non-governmental salaries of public official and spouse/registered domestic partnerships,ethics,offices:incomeSources,fkhv-84jp,True
+scheduleD_redacted,Form 700 Schedule D,City Management and Ethics,Gifts from businesses (such as tickets to sporting or entertainment events),ethics,offices:gifts,kpf8-y8tj,True
+scheduleE_redacted,Form 700 Schedule E,City Management and Ethics,Travel payments from third parties (not your employer),ethics,offices,2ige-b5yn,True
+comments_redacted,Form 700 Comments,City Management and Ethics,Comments about Form 700 schedules,ethics,offices,e9vv-n9ta,true

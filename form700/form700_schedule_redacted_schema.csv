@@ -1,0 +1,35 @@
+dataTypeName,fieldName,name
+text,filerName,Filer Name
+text,departmentName,Department Name
+text,positionName,Position Name
+text,offices,Offices
+date,periodEnd,Period End
+date,periodStart,Period Start
+date,filingDate,Filing Date
+text,city,City
+date,dateAcquired,Date Acquired
+date,dateDisposed,Date Disposed
+number,fairMarketValueScheduleB,Fair Market Value Schedule B
+text,fairMarketValueScheduleBAsRange,Fair Market Value Schedule B As Range
+text,filerId,Filer
+text,filingId,Filing
+number,grossIncomeReceived,Gross Income Received
+text,grossIncomeReceivedAsRange,Gross Income Received As Range
+text,id,Id
+text,incomeSources,Income Sources
+text,loan.address,Loan Address
+text,loan.businessActivity,Loan Business Activity
+text,loan.city,Loan City
+text,loan.guarantor,Loan Guarantor
+number,loan.highestBalance,Loan Highest Balance
+text,loan.highestBalanceAsRange,Loan Highest Balance As Range
+number,loan.interestRate,Loan Interest Rate
+text,loan.nameOfLender,Loan Name Of Lender
+text,loan.state,Loan State
+text,loan.term,Loan Term
+text,loan.zip,Loan Zipcode
+text,natureOfInterest,Nature Of Interest
+text,natureOfInterest_LeaseYearsRemaining,Nature Of Interest Lease Years Remaining
+text,natureOfInterest_OtherDescription,Nature Of Interest Other Description
+text,parcelOrAddress,Parcel Or Address
+text,transactionType,Transaction Type

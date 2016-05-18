@@ -79,10 +79,14 @@ class form700:
         self.page_size = 1000
         self.headers = {'content-type': 'application/json'}
         self.cookies = self.grabCookies()
-        self.schedules = ['scheduleA1', 'scheduleA2', 'scheduleB', 'scheduleC', 'scheduleD', 'scheduleE']
+        self.schedules = ['scheduleA1', 'scheduleA2', 'scheduleB', 'scheduleC', 'scheduleD', 'scheduleE', 'comments']
+        self.schedules_redacted = ['scheduleA1_redacted', 'scheduleA2_redacted', 'scheduleB_redacted', 'scheduleC_redacted', 'scheduleD_redacted', 'scheduleE_redacted', 'comments_redacted']
     
     def getSchedules(self):
         return self.schedules
+    
+    def getSchedulesRedacted(self):
+        return self.schedules_redacted
 
     def grabCookies(self):
         '''
@@ -92,13 +96,13 @@ class form700:
         r = requests.post(authUrl)
         return r.cookies
     
-    def makeRequest(self, url, current_page):
+    def makeRequest(self, url, current_page, isRedacted):
         '''
         method to make API calls to form 700 API
         '''
         rContent = None
         responseJson = None
-        payload = {'AgencyPrefix': self.agency_prefix, 'CurrentPageIndex': current_page, 'PageSize': self.page_size}
+        payload = {'AgencyPrefix': self.agency_prefix, 'CurrentPageIndex': current_page, 'PageSize': self.page_size, 'IsRedacted': isRedacted}
         rContent = requests.post(url, params=payload, headers = self.headers, cookies=self.cookies)
         try:
             responseJson =  json.loads(rContent.content)
@@ -106,7 +110,7 @@ class form700:
             print "could not load content as json"
         return responseJson
     
-    def getJsonData(self, url, keyToPluck=None):
+    def getJsonData(self, url, isRedacted, keyToPluck=None):
         '''
         method to grab json data from API response
         '''
@@ -115,7 +119,7 @@ class form700:
         filing_data = []
         while current_page <= total_pages:
             current_page = current_page + 1
-            responseJson = self.makeRequest(url, current_page)
+            responseJson = self.makeRequest(url, current_page, isRedacted)
             if keyToPluck:
                 filing_data = filing_data + responseJson[keyToPluck]
             else:
@@ -123,26 +127,31 @@ class form700:
             total_pages = responseJson['totalMatchingPages']
         return filing_data
     
-    def getCoverData(self):
+    def getCoverData(self, isRedacted=False):
         '''
         returns cover sheet data
         '''
         cover_data = None
-        cover_data = self.getJsonData(self.url_cover, 'filings')
+        cover_data = self.getJsonData(self.url_cover, isRedacted, 'filings')
         if cover_data:
             cover_data = json_normalize(cover_data)
-        cover_data = {'cover':cover_data}
+        if isRedacted:
+            cover_data = {'cover_redacted':cover_data}
+        else:
+            cover_data = {'cover':cover_data}
         return cover_data
     
-    def getScheduleData(self):
+    def getScheduleData(self, isRedacted=False):
         '''
         returns schedules A1, A2, B, C, D and E
         '''
         parsed_schedulesDict = {}
-        schedule_data = self.getJsonData(self.url_schedule)
+        schedule_data = self.getJsonData(self.url_schedule, isRedacted)
         parsed_schedules = [  self.parseScheduleData(schedule, schedule_data) for schedule in self.schedules ]
         for i in range(len(self.schedules)):
             parsed_schedulesDict[self.schedules[i]] = parsed_schedules[i][self.schedules[i]]
+        if isRedacted:
+            parsed_schedulesDict = { k+"_redacted":v for k,v in parsed_schedulesDict.iteritems()}
         return parsed_schedulesDict
     
     @staticmethod
@@ -207,7 +216,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[18]:
+# In[52]:
 
 class dataSetPrep:
     '''
@@ -234,8 +243,18 @@ class dataSetPrep:
     def castFields(self, df, fieldTypesDict):
         for field, ftype in fieldTypesDict.iteritems():
             if ftype == 'number':
-                df[field] = df[field].fillna(0)
-                df[field]= df[field].astype(int)
+                try:
+                    df[field]= df[field].astype(str)
+                except:
+                    df[field]= df.apply(lambda row: self.castAscii(row,field),axis=1)
+                
+                df[field] = df[field].replace({'[a-zA-Z%]': 0}, regex=True)
+                try: 
+                    df[field] = df[field].fillna(value=0)
+                    df[field] = df[field].astype(int)
+                except:
+                    df[field] = df[field].fillna(value=0.0)
+                    df[field] = df[field].apply(pd.to_numeric, errors='coerce').fillna(value=0.0)
             elif ftype == 'text':
                 df[field] = df[field].fillna(value="")
                 try:
@@ -243,8 +262,10 @@ class dataSetPrep:
                 except:
                     df[field]= df.apply(lambda row: self.castAscii(row,field),axis=1)
             elif ftype == 'checkbox':
+                #df[field] = df[field].replace({'False': False}, regex=True)
+                #df[field] = df[field].replace({'True': True}, regex=True)
                 df[field] = df[field].fillna(value=False)
-                df[field]= df[field].astype(bool)
+                #df[field]= df[field].astype(bool)
             #elif ftype == 'date':
                # df[field] = df[field].fillna(value="")
                 #df[field] = pd.to_datetime(df[field], errors='coerce' , format='%Y%m%d')
@@ -294,7 +315,7 @@ class dataSetPrep:
             list_columns = list_columns.split(":")
             #df = df_dict[dfname]
             for col in list_columns:
-                print col
+                #print col
                 if(not(col == 'gifts' or col == 'realProperties')):
                     df[col] = df.apply(lambda row: self.flatten_json(row, col), axis=1)
             itemToExplode = False
@@ -334,7 +355,7 @@ class dataSetPrep:
             return newdf
         df['index_col'] = df.index
         dfListItems = pd.DataFrame()
-        print len(dfListItems)
+        #print len(dfListItems)
         rowsidx = list(df['index_col'])
         for idx in rowsidx:
             row = df[ df['index_col'] == idx]
@@ -346,7 +367,7 @@ class dataSetPrep:
         return df
 
 
-# In[19]:
+# In[53]:
 
 class SocrataCreateInsertUpdateForm700Data:
     '''
@@ -395,6 +416,7 @@ class SocrataCreateInsertUpdateForm700Data:
         socrata_dataset['category'] = table['category']
         socrata_dataset['dataset_name'] = table['dataset_name']
         socrata_dataset['FourByFour'] = table['FourByFour']
+        socrata_dataset['redacted'] = table['redacted']
         return socrata_dataset
     
     def createDataSet(self, dfname):
@@ -480,7 +502,7 @@ class SocrataCreateInsertUpdateForm700Data:
         return dataset
 
 
-# In[20]:
+# In[54]:
 
 class emailer():
     '''
@@ -546,7 +568,7 @@ class emailer():
         server.quit()
 
 
-# In[21]:
+# In[55]:
 
 class logETLLoad:
     '''
@@ -618,14 +640,39 @@ class logETLLoad:
         print "Email Sent!"
 
 
-# In[22]:
+# In[17]:
 
 #needed to create schema csv files 
 #cds= createDataSets(config_dir, configItems)
 #schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
 
 
-# In[23]:
+# In[92]:
+
+def getDataAndUpload(finishedDataSets, isRedacted=False):
+    #get the data
+    cover_data = f700.getCoverData(isRedacted)
+    schedule_data = f700.getScheduleData(isRedacted) 
+    #join cover data to schedules 
+    if isRedacted:
+        cover_key = 'cover_redacted'
+    else:
+        cover_key = 'cover'
+    schedule_data = dsp.joinFilerToSchedule(schedule_data, cover_data[cover_key])
+    #clean the cover data + schedule datasets 
+    cover_data[cover_key] = dsp.cleanDataSet(cover_data,  cover_key, tables)
+    schedule_data = dsp.cleanDataSetDict(schedule_data, tables)
+    schedule_list = schedule_data.keys()
+    #post the redacted data
+    dataset = scICU.postDataToSocrata(cover_key, cover_data)
+    finishedDataSets.append(dataset)
+    for schedule in schedule_list: 
+        dataset = scICU.postDataToSocrata(schedule, schedule_data)
+        finishedDataSets.append(dataset)
+    return finishedDataSets
+
+
+# In[ ]:
 
 def main():
     inputdir = "/home/ubuntu/workspace/configFiles/"
@@ -639,26 +686,18 @@ def main():
     dsp = dataSetPrep(configItems)
     lte = logETLLoad(inputdir, configItems)
     f700 = form700(configItems)
-    schedules =  f700.getSchedules()
     tables = scICU.getTableInfo()
     tables = tables.fillna(0)
-    cover_data = f700.getCoverData()
-    schedule_data = f700.getScheduleData()
-    schedule_data = dsp.joinFilerToSchedule(schedule_data, cover_data['cover'])
-    #clean the cover data
-    cover_data['cover'] = dsp.cleanDataSet(cover_data, 'cover', tables)
-    schedule_data = dsp.cleanDataSetDict(schedule_data, tables)
-    #post the datasets to Socrata
     finishedDataSets  = []
-    dataset =  scICU.postDataToSocrata('cover', cover_data)
-    finishedDataSets.append(dataset)
-    for schedule in schedules: 
-        dataset = scICU.postDataToSocrata(schedule, schedule_data)
-        finishedDataSets.append(dataset)
+    #get the private datasets
+    finishedDataSets = getDataAndUpload(finishedDataSets, False)
+    #get the redacted datasets
+    finishedDataSets = getDataAndUpload(finishedDataSets, True)
     msg  = lte.sendJobStatusEmail(finishedDataSets)
+    client.close()
 
 
-# In[33]:
+# In[81]:
 
 if __name__ == '__main__' and '__file__' in globals():
     main()
