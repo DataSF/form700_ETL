@@ -674,31 +674,26 @@ def getDataAndUpload(finishedDataSets, isRedacted=False):
 
 # In[ ]:
 
-def main():
-    inputdir = "/home/ubuntu/workspace/configFiles/"
-    fieldConfigFile = 'fieldConfig.yaml'
-    cI =  ConfigItems(inputdir ,fieldConfigFile  )
-    configItems = cI.getConfigs()
-    sc = SocrataClient(inputdir, configItems)
-    client = sc.connectToSocrata()
-    #class objects
-    scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
-    dsp = dataSetPrep(configItems)
-    lte = logETLLoad(inputdir, configItems)
-    f700 = form700(configItems)
-    tables = scICU.getTableInfo()
-    tables = tables.fillna(0)
-    finishedDataSets  = []
-    #get the private datasets
-    finishedDataSets = getDataAndUpload(finishedDataSets, False)
-    #get the redacted datasets
-    finishedDataSets = getDataAndUpload(finishedDataSets, True)
-    msg  = lte.sendJobStatusEmail(finishedDataSets)
-    client.close()
 
+inputdir = "/home/ubuntu/workspace/configFiles/"
+fieldConfigFile = 'fieldConfig.yaml'
+cI =  ConfigItems(inputdir ,fieldConfigFile  )
+configItems = cI.getConfigs()
+sc = SocrataClient(inputdir, configItems)
+client = sc.connectToSocrata()
+#class objects
+scICU = SocrataCreateInsertUpdateForm700Data(configItems,client)
+dsp = dataSetPrep(configItems)
+lte = logETLLoad(inputdir, configItems)
+f700 = form700(configItems)
+tables = scICU.getTableInfo()
+tables = tables.fillna(0)
+finishedDataSets  = []
+#get the private datasets
+finishedDataSets = getDataAndUpload(finishedDataSets, False)
+#get the redacted datasets
+finishedDataSets = getDataAndUpload(finishedDataSets, True)
+msg  = lte.sendJobStatusEmail(finishedDataSets)
+client.close()
 
-# In[81]:
-
-if __name__ == '__main__' and '__file__' in globals():
-    main()
 
