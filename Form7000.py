@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[123]:
 
 import requests
 import json
@@ -21,9 +21,10 @@ from email.MIMEBase import MIMEBase
 from email import encoders
 import csv
 import time
+import datetime
 
 
-# In[2]:
+# In[124]:
 
 class ConfigItems:
     '''
@@ -63,7 +64,7 @@ class SocrataClient:
     
 
 
-# In[3]:
+# In[125]:
 
 class form700:
     '''
@@ -166,7 +167,7 @@ class form700:
     
 
 
-# In[4]:
+# In[126]:
 
 class prepareDataSetSchema:
     '''
@@ -216,7 +217,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[52]:
+# In[127]:
 
 class dataSetPrep:
     '''
@@ -367,7 +368,7 @@ class dataSetPrep:
         return df
 
 
-# In[53]:
+# In[128]:
 
 class SocrataCreateInsertUpdateForm700Data:
     '''
@@ -502,7 +503,7 @@ class SocrataCreateInsertUpdateForm700Data:
         return dataset
 
 
-# In[54]:
+# In[129]:
 
 class emailer():
     '''
@@ -568,7 +569,7 @@ class emailer():
         server.quit()
 
 
-# In[55]:
+# In[130]:
 
 class logETLLoad:
     '''
@@ -640,14 +641,14 @@ class logETLLoad:
         print "Email Sent!"
 
 
-# In[17]:
+# In[131]:
 
 #needed to create schema csv files 
 #cds= createDataSets(config_dir, configItems)
 #schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
 
 
-# In[92]:
+# In[132]:
 
 def getDataAndUpload(finishedDataSets, isRedacted=False):
     #get the data
@@ -672,8 +673,7 @@ def getDataAndUpload(finishedDataSets, isRedacted=False):
     return finishedDataSets
 
 
-# In[ ]:
-
+# In[133]:
 
 inputdir = "/home/ubuntu/workspace/configFiles/"
 fieldConfigFile = 'fieldConfig.yaml'
@@ -688,6 +688,13 @@ lte = logETLLoad(inputdir, configItems)
 f700 = form700(configItems)
 tables = scICU.getTableInfo()
 tables = tables.fillna(0)
+
+
+# In[ ]:
+
+print "Outputting Form 700 Datasets"
+print datetime.datetime.now()
+print 
 finishedDataSets  = []
 #get the private datasets
 finishedDataSets = getDataAndUpload(finishedDataSets, False)
@@ -695,5 +702,15 @@ finishedDataSets = getDataAndUpload(finishedDataSets, False)
 finishedDataSets = getDataAndUpload(finishedDataSets, True)
 msg  = lte.sendJobStatusEmail(finishedDataSets)
 client.close()
+
+
+# In[95]:
+
+#if __name__ == '__main__' and '__file__' in globals():
+  #  main()
+
+
+# In[ ]:
+
 
 
