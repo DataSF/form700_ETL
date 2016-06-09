@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[123]:
+# In[149]:
 
 import requests
 import json
@@ -22,9 +22,11 @@ from email import encoders
 import csv
 import time
 import datetime
+import logging
+from retry import retry
 
 
-# In[124]:
+# In[150]:
 
 class ConfigItems:
     '''
@@ -61,10 +63,23 @@ class SocrataClient:
             except yaml.YAMLError as exc:
                 print(exc)
         return 0
-    
+
+class pyLogger:
+    def __init__(self, configItems):
+        self.logfn = configItems['exception_logfile']
+        self.log_dir = configItems['log_dir']
+        self.logfile_fullpath = self.log_dir+self.logfn
+
+    def setConfig(self):
+        #open a file to clear log
+        fo = open(self.logfn, "w")
+        fo.close
+        logging.basicConfig(level=logging.DEBUG, filename=self.logfn, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+        logger=logging.getLogger(__name__)
+            #self.logfile_fullpath )
 
 
-# In[125]:
+# In[151]:
 
 class form700:
     '''
@@ -167,7 +182,7 @@ class form700:
     
 
 
-# In[126]:
+# In[152]:
 
 class prepareDataSetSchema:
     '''
@@ -217,7 +232,7 @@ class prepareDataSetSchema:
         cover_schema = self.makeSchemaCsv(cover_data, 'form700_cover_schema')
 
 
-# In[127]:
+# In[153]:
 
 class dataSetPrep:
     '''
@@ -368,7 +383,7 @@ class dataSetPrep:
         return df
 
 
-# In[128]:
+# In[154]:
 
 class SocrataCreateInsertUpdateForm700Data:
     '''
@@ -379,6 +394,7 @@ class SocrataCreateInsertUpdateForm700Data:
         self.schema_dir = configItems['schema_dir']
         self.tables = self.setTableInfo()
         self.dataset_base_url = configItems['dataset_base_url']
+        self.chunkSize = 1000
     
     def getTableInfo(self):
         return self.tables
@@ -439,11 +455,11 @@ class SocrataCreateInsertUpdateForm700Data:
     
     def insertDataSet(self, dataset, dataset_dict, dfname):
         insertDataSet = []
+        rejectedChunks = []
         #keep track of the rows we are inserting
         dataset['rowsInserted'] = 0
         dataset['totalRecords'] = 0
-        print dfname
-        print dataset['FourByFour']
+        print "dataset: " dfname + ": " + dataset['FourByFour']
         ##need to rename all the columns to fit socrata- need to use titlize
         fieldnames = list(dataset_dict[dfname].columns)
         fieldnamesRemoveDots =  [ field.replace(".", "") for field in fieldnames]
@@ -460,39 +476,35 @@ class SocrataCreateInsertUpdateForm700Data:
             print 'Error: could not get data'
             return dataset
         
-        #need to chunk up dataset so we dont get Read timed out errors
-        if len(insertDataSet) > 1000 and (not(insertDataSet is None)):
-            #chunk it
-            insertChunks=[insertDataSet[x:x+1000] for x in xrange(0, len(insertDataSet), 1000)]
-            try:
-                row_result = 0
-                result = self.client.replace(dataset['FourByFour'], insertChunks[0]) 
-                row_result =  int(result['Rows Created'])
-                dataset['rowsInserted'] = row_result
-            except:
-                print 'Error: did not insert first dataset chunk'
-        
-            for chunk in insertChunks[1:]:
-                try:
-                    row_result = 0
-                    result = self.client.upsert(dataset['FourByFour'], chunk)
-                    row_result =  int(result['Rows Created'])
-                    current_insert_cnt =  dataset['rowsInserted']
-                    dataset['rowsInserted'] = current_insert_cnt + row_result
-                    #print "Additional Chunks: Rows inserted: " + str(dataset['rowsInserted'])
-                    time.sleep(1)
-                except:
-                    print 'Error: did not insert dataset chunk'
-
-        elif len(insertDataSet) < 1000 and (not(insertDataSet is None)):
-            #print insertDataSet[0]
-            try:
-                result = self.client.replace(dataset['FourByFour'], insertDataSet) 
-                dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
-                #print "Rows inserted: " + str(dataset['rowsInserted'])
-            except:
-                print 'Error: did not insert dataset'
+        insertChunks = self.makeChunks(insertDataSet)
+        #overwrite the dataset on the first insert chunk[0]
+        if dataset['rowsInserted'] == 0:
+            rejectedChunk = self.replaceDataSet(dataset, insertChunks[0])
+            if len(insertChunks) > 1:
+                for chunk in insertChunks[1:]:
+                    rejectedChunk = self.insertData(dataset, chunk)
+        else:
+            for chunk in insertChunk:
+                rejectedChunk = self.insertData(dataset, chunk)
         return dataset
+    
+    @retry( tries=10, delay=1, backoff=2)
+    def replaceDataSet(self, dataset, chunk):
+        result = self.client.replace( dataset['FourByFour'], chunk ) 
+        dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
+        time.sleep(0.25)
+        
+        
+    @retry( tries=10, delay=1, backoff=2)
+    def insertData(self, dataset, chunk):
+        result = self.client.upsert(dataset['FourByFour'], chunk) 
+        dataset['rowsInserted'] = dataset['rowsInserted'] + int(result['Rows Created'])
+        time.sleep(0.25)
+       
+
+    def makeChunks(self, insertDataSet):
+        return [insertDataSet[x:x+ self.chunkSize] for x in xrange(0, len(insertDataSet), self.chunkSize)]
+    
     
     def postDataToSocrata(self, dfname, dataset_dict ):
         dataset = self.createDataSet(dfname)
@@ -503,7 +515,7 @@ class SocrataCreateInsertUpdateForm700Data:
         return dataset
 
 
-# In[129]:
+# In[155]:
 
 class emailer():
     '''
@@ -535,6 +547,7 @@ class emailer():
         self.fname_attachment = fname_attachment
         self.fname_attachment_fullpath = fname_attachment_fullpath
         self.recipients = self.emailConfigs['receipients']
+        self.recipients =  self.recipients.split(",")
     
     def getEmailConfigs(self):
         return self.emailConfigs
@@ -545,7 +558,7 @@ class emailer():
         toaddr = self.recipients
         msg = MIMEMultipart()
         msg['From'] = fromaddr
-        msg['To'] = toaddr
+        msg['To'] = ", ".join(toaddr)
         msg['Subject'] = self.subjectLine
         body = self.msgBody 
         msg.attach(MIMEText(body, 'plain'))
@@ -569,7 +582,7 @@ class emailer():
         server.quit()
 
 
-# In[130]:
+# In[156]:
 
 class logETLLoad:
     '''
@@ -641,14 +654,14 @@ class logETLLoad:
         print "Email Sent!"
 
 
-# In[131]:
+# In[157]:
 
 #needed to create schema csv files 
 #cds= createDataSets(config_dir, configItems)
 #schemas = cds.makeSchemaOutFiles(schedule_data,cover_data, schedules )
 
 
-# In[132]:
+# In[158]:
 
 def getDataAndUpload(finishedDataSets, isRedacted=False):
     #get the data
@@ -673,7 +686,7 @@ def getDataAndUpload(finishedDataSets, isRedacted=False):
     return finishedDataSets
 
 
-# In[133]:
+# In[159]:
 
 inputdir = "/home/ubuntu/workspace/configFiles/"
 fieldConfigFile = 'fieldConfig.yaml'
@@ -688,9 +701,11 @@ lte = logETLLoad(inputdir, configItems)
 f700 = form700(configItems)
 tables = scICU.getTableInfo()
 tables = tables.fillna(0)
+lg = pyLogger(configItems)
+lg.setConfig()
 
 
-# In[ ]:
+# In[160]:
 
 print "Outputting Form 700 Datasets"
 print datetime.datetime.now()
@@ -708,9 +723,4 @@ client.close()
 
 #if __name__ == '__main__' and '__file__' in globals():
   #  main()
-
-
-# In[ ]:
-
-
 
