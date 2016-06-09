@@ -459,7 +459,7 @@ class SocrataCreateInsertUpdateForm700Data:
         #keep track of the rows we are inserting
         dataset['rowsInserted'] = 0
         dataset['totalRecords'] = 0
-        print "dataset: " dfname + ": " + dataset['FourByFour']
+        print "dataset: " + dfname + ": " + dataset['FourByFour']
         ##need to rename all the columns to fit socrata- need to use titlize
         fieldnames = list(dataset_dict[dfname].columns)
         fieldnamesRemoveDots =  [ field.replace(".", "") for field in fieldnames]
