@@ -1,0 +1,40 @@
+dataTypeName,fieldName,name
+text,filerName,Filer Name
+text,departmentName,Department Name
+text,positionName,Position Name
+text,offices,Offices
+date,periodEnd,Period End
+date,periodStart,Period Start
+date,filingDate,Filing Date
+text,address,Address
+text,businessPosition,Business Position
+text,businessType,Business Type
+text,city,City
+date,dateAcquired,Date Acquired
+date,dateDisposed,Date Disposed
+text,description,Description
+text,entityName,Entity Name
+number,fairMarketValueScheduleA2,Fair Market Value Schedule A2
+text,fairMarketValueScheduleA2AsRange,Fair Market Value Schedule A2 As Range
+text,filerId,Filer
+text,filingId,Filing
+number,grossIncomeReceived,Gross Income Received
+text,grossIncomeReceivedAsRange,Gross Income Received As Range
+text,id,Id
+text,incomeSources,Income Sources
+text,natureOfInvestment,Nature Of Investment
+text,natureOfInvestment_OtherDescription,Nature Of Investment Other Description
+text,state,State
+text,transactionType,Transaction Type
+text,zip,Zipcode
+text,realPropertyBusinessName,Real Property Business Name
+date,realPropertyDateAcquired,Real Property Date Acquired
+date,realPropertyDateDisposed,Real Property Date Disposed
+text,realPropertyDescriptionOrCityOrLocation,Real Property Description Or City Or Location
+number,realPropertyFairMarketValue,Real Property Fair Market Value
+text,realPropertyFairMarketValueAsRange,Real Property Fair Market Value As Range
+text,realPropertyInvestmentType,Real Property Investment Type
+text,realPropertyNatureOfInterest,Real Property Nature Of Interest 
+text,realPropertyNatureOfInterest_LeaseYearsRemaining,Real Property Nature Of Interest Lease Years Remaining
+text,realPropertyNatureOfInterest_OtherDescription,Real Property Nature Of Interest Other Description
+text,realPropertyParcelAddress,Real Property Parcel Address

@@ -1,0 +1,21 @@
+dataTypeName,fieldName,name
+text,filerName,Filer Name
+text,departmentName,Department Name
+text,positionName,Position Name
+text,offices,Offices
+date,periodEnd,Period End
+date,periodStart,Period Start
+date,filingDate,Filing Date
+text,address,Address
+text,businessActivity,Business Activity
+text,city,City
+text,filerId,Filer
+text,filingId,Filing
+text,id,Id
+text,nameOfSource,Name Of Source
+text,state,State
+text,transactionType,Transaction Type
+text,zip,Zipcode
+number,amount,Amount
+text,description,Description
+date,giftDate,Gift Date

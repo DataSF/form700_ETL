@@ -1,0 +1,13 @@
+dataTypeName,fieldName,name
+text,filerName,Filer Name
+text,departmentName,Department Name
+text,positionName,Position Name
+text,offices,Offices
+date,periodEnd,Period End
+date,periodStart,Period Start
+date,filingDate,Filing Date
+text,filerId,Filer
+text,filingId,Filing
+text,id,Id
+text,comment,Comment
+text,transactionType,Transaction Type
