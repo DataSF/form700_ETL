@@ -108,8 +108,8 @@ class form700:
         '''
         gets session cookie; then sets cookie property in the object
         '''
-        authUrl = self.authUrl + '?UserName=' + self.username + '&Password='+ base64.b64decode(self.password)
-        r = requests.post(authUrl)
+        payload = {"UserName":self.username, "Password":base64.b64decode(self.password)}
+        r = requests.post(self.authUrl, data=payload)
         return r.cookies
     
     def makeRequest(self, url, current_page, isRedacted):
@@ -724,4 +724,3 @@ client.close()
 
 #if __name__ == '__main__' and '__file__' in globals():
   #  main()
-
